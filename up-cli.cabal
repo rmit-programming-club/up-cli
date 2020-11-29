@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       Lib
+      Up
   other-modules:
       Paths_up_cli
   hs-source-dirs:
@@ -35,6 +36,9 @@ library
     , base >=4.7 && <5
     , bytestring
     , lens
+    , text
+    , time
+    , unordered-containers
     , wreq
   default-language: Haskell2010
 
@@ -50,6 +54,9 @@ executable up-cli-exe
     , base >=4.7 && <5
     , bytestring
     , lens
+    , text
+    , time
+    , unordered-containers
     , up-cli
     , wreq
   default-language: Haskell2010
@@ -67,6 +74,9 @@ test-suite up-cli-test
     , base >=4.7 && <5
     , bytestring
     , lens
+    , text
+    , time
+    , unordered-containers
     , up-cli
     , wreq
   default-language: Haskell2010

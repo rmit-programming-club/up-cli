@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Up
   ( ping
   , accounts
@@ -12,12 +13,17 @@ module Up
   , Transaction(..)
   )
    where
+
 import Control.Lens ((&), (.~), (^.))
 import qualified Network.Wreq  as Wreq
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.Text as Text
 import Data.Aeson ((.:))
 import Text.Read (readMaybe)
 import qualified Data.ByteString.Char8 as BS
+import qualified Text.Printf as Printf
+import qualified Data.Maybe as Maybe
 
 
 
@@ -53,8 +59,8 @@ instance Aeson.FromJSON AccountResponse where
     parseJSON = Aeson.withObject "AccountResponse" $ \v -> AccountResponse
        <$> v .: "data"
 
-data Account = Account { accountId :: String
-                       , accountDisplayName :: String
+data Account = Account { accountId :: Text.Text
+                       , accountDisplayName :: Text.Text
                        , accountBalance :: Amount 
                        }
 
@@ -67,15 +73,22 @@ instance Aeson.FromJSON Account where
        balance <- attributes .: "balance"
        return $ Account id displayName balance
 
-data Amount = Amount { amountValueInBaseUnits :: Int } 
+newtype Amount = Amount { amountValueInBaseUnits :: Int } 
+  deriving(Num)
 
 instance Aeson.FromJSON Amount where
     parseJSON = Aeson.withObject "Balance" $ \v ->
        Amount <$> v  .: "valueInBaseUnits"
 
+instance Show Amount where
+  show (Amount baseUnits) = 
+     let dollars = baseUnits `quot` 100
+         cents = baseUnits `rem` 100
+      in
+        concat ["$", show dollars, ".", Printf.printf "%02d" cents]
 
-transactions :: String -> IO (Either String TransactionsResponse)
-transactions = makeRequest "transactions"
+transactions :: String -> Maybe String -> IO (Either String TransactionsResponse)
+transactions token category = makeRequest ("transactions" <> (Maybe.fromMaybe "" (fmap ("?filter%5Bcategory%5D="<>) category))) token
 
 data TransactionsResponse = TransactionsResponse [Transaction]
 
@@ -83,7 +96,13 @@ instance Aeson.FromJSON TransactionsResponse where
     parseJSON = Aeson.withObject "TransactionsResponse" $ \v ->
         TransactionsResponse <$> v .: "data"
 
-data Transaction = Transaction { transactionId :: String, transactionAmount :: Amount, transactionDecsription :: String }
+data Transaction = Transaction 
+    { transactionId :: Text.Text
+    , transactionAmount :: Amount
+    , transactionDecsription :: Text.Text 
+    , transactionMessage :: Maybe Text.Text 
+    , transactionCategory :: Maybe Text.Text
+    }
 
 instance Aeson.FromJSON Transaction where
     parseJSON = Aeson.withObject "Transaction" $ \v -> do
@@ -91,4 +110,13 @@ instance Aeson.FromJSON Transaction where
        attributes <- v .: "attributes"
        amount <- attributes .: "amount"
        description <- attributes .: "description"
-       return $ Transaction id amount description
+       message <- attributes .: "message"
+       relationships <- v .: "relationships"
+       category <- relationships .: "category"
+       category_data <- category .: "data" :: Aeson.Parser (Maybe Aeson.Object)
+       catId <-
+             case category_data of
+               Nothing -> return Nothing
+               Just cat_data ->
+                 cat_data .: "id"
+       return $ Transaction id amount description message catId

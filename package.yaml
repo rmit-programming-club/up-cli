@@ -26,6 +26,8 @@ dependencies:
 - bytestring
 - lens
 - time
+- text
+- unordered-containers
 
 library:
   source-dirs: src
